@@ -347,37 +347,102 @@ export default function App() {
 
     // Determine if pattern is horizontal or vertical
     const isHorizontal = wiringPattern.startsWith('horizontal');
+    const isReverseStart = wiringPattern.endsWith('left') || wiringPattern.endsWith('up');
     const lineSize = isHorizontal ? finalWidthModules : finalHeightModules;
     const numLines = isHorizontal ? finalHeightModules : finalWidthModules;
 
-    // Calculate outputs needed with connections at extremes
-    // Each line gets its own output(s) to keep connections at edges
-    let outputsPerLine = Math.ceil(lineSize / effectiveModulesPerOutput);
-    let totalOutputsNeeded = outputsPerLine * numLines;
+    // Calculate total outputs needed with serpentine (continuous across lines)
+    const totalOutputsNeeded = Math.ceil(totalModules / effectiveModulesPerOutput);
 
-    // Calculate processors needed
-    const processorsNeeded = Math.ceil(totalOutputsNeeded / proc.outputs);
-    const totalOutputsAvailable = processorsNeeded * proc.outputs;
+    // Calculate processors needed and distribute lines for straight cuts
+    // Each processor handles complete lines only
+    const modulesPerProcessorMax = proc.outputs * effectiveModulesPerOutput;
+    const linesPerProcessorMax = Math.floor(modulesPerProcessorMax / lineSize);
 
-    // Calculate lines per processor for straight cuts
-    const linesPerProcessor = Math.floor(numLines / processorsNeeded);
+    // Calculate minimum processors needed (must handle complete lines)
+    let processorsNeeded = Math.ceil(numLines / linesPerProcessorMax);
+    if (processorsNeeded === 0) processorsNeeded = 1;
+
+    // Distribute lines evenly between processors for balanced load
+    const baseLinesPerProc = Math.floor(numLines / processorsNeeded);
     const extraLines = numLines % processorsNeeded;
 
-    // Build processor distribution
+    // Build processor distribution with balanced outputs
     const processorDistribution = [];
     let lineIndex = 0;
+    let globalOutputIndex = 0;
+
     for (let p = 0; p < processorsNeeded; p++) {
-      const linesForThisProc = linesPerProcessor + (p < extraLines ? 1 : 0);
-      const outputsUsed = linesForThisProc * outputsPerLine;
+      // Distribute extra lines to later processors for better balance
+      const linesForThisProc = baseLinesPerProc + (p >= processorsNeeded - extraLines ? 1 : 0);
+      const modulesForThisProc = linesForThisProc * lineSize;
+      const outputsForThisProc = Math.ceil(modulesForThisProc / effectiveModulesPerOutput);
+
       processorDistribution.push({
         processorIndex: p + 1,
         startLine: lineIndex,
         endLine: lineIndex + linesForThisProc - 1,
         linesCount: linesForThisProc,
-        outputsUsed,
-        modulesCount: linesForThisProc * lineSize
+        outputsUsed: outputsForThisProc,
+        modulesCount: modulesForThisProc,
+        startOutputIndex: globalOutputIndex
       });
+
       lineIndex += linesForThisProc;
+      globalOutputIndex += outputsForThisProc;
+    }
+
+    const totalOutputsAvailable = processorsNeeded * proc.outputs;
+
+    // Build serpentine path for the entire screen
+    const buildSerpentinePath = () => {
+      const path = [];
+      for (let line = 0; line < numLines; line++) {
+        // Determine direction based on line number and start direction
+        const isEvenLine = line % 2 === 0;
+        const goForward = isReverseStart ? !isEvenLine : isEvenLine;
+
+        for (let pos = 0; pos < lineSize; pos++) {
+          const actualPos = goForward ? pos : (lineSize - 1 - pos);
+          if (isHorizontal) {
+            path.push({ row: line, col: actualPos, lineIndex: line });
+          } else {
+            path.push({ row: actualPos, col: line, lineIndex: line });
+          }
+        }
+      }
+      return path;
+    };
+
+    const serpentinePath = buildSerpentinePath();
+
+    // Build output groups following serpentine within each processor's lines
+    const outputGroups = [];
+
+    for (let procIdx = 0; procIdx < processorDistribution.length; procIdx++) {
+      const procDist = processorDistribution[procIdx];
+
+      // Get all modules for this processor (complete lines only)
+      const procModules = serpentinePath.filter(
+        m => m.lineIndex >= procDist.startLine && m.lineIndex <= procDist.endLine
+      );
+
+      // Split into outputs (serpentine continuous within processor)
+      let localOutputIndex = 0;
+      for (let i = 0; i < procModules.length; i += effectiveModulesPerOutput) {
+        const group = procModules.slice(i, i + effectiveModulesPerOutput).map(m => ({
+          row: m.row,
+          col: m.col
+        }));
+
+        outputGroups.push({
+          modules: group,
+          outputIndex: procDist.startOutputIndex + localOutputIndex,
+          processorIndex: procIdx,
+          localOutputIndex: localOutputIndex + 1 // 1-based for display
+        });
+        localOutputIndex++;
+      }
     }
 
     // Balanced distribution of modules per output
@@ -390,7 +455,7 @@ export default function App() {
     const heightSufficient = !proc.maxHeight || resolutionH <= proc.maxHeight;
     const singleProcessorSufficient = totalOutputsNeeded <= proc.outputs && totalPixels <= proc.totalPixels;
 
-    // Find best alternative processor (single unit that can handle everything)
+    // Find best alternative processor
     let recommendedProcessor = null;
     let recommendedProcessorCount = null;
     const sortedProcessors = Object.values(processors).sort((a, b) => a.outputs - b.outputs);
@@ -401,9 +466,11 @@ export default function App() {
       let pCalcModules = Math.floor(pPixelsPerOutput / pixelsPerModule);
       if (pCalcModules === 0) pCalcModules = 1;
       const pEffective = p.maxModulesPerOutput ? Math.min(pCalcModules, p.maxModulesPerOutput) : pCalcModules;
-      const pOutputsPerLine = Math.ceil(lineSize / pEffective);
-      const pTotalOutputs = pOutputsPerLine * numLines;
-      const pProcessorsNeeded = Math.ceil(pTotalOutputs / p.outputs);
+      const pModulesPerProcMax = p.outputs * pEffective;
+      const pLinesPerProcMax = Math.floor(pModulesPerProcMax / lineSize);
+      let pProcessorsNeeded = Math.ceil(numLines / pLinesPerProcMax);
+      if (pProcessorsNeeded === 0) pProcessorsNeeded = 1;
+
       const pWidthOk = !p.maxWidth || resolutionW <= p.maxWidth;
       const pHeightOk = !p.maxHeight || resolutionH <= p.maxHeight;
 
@@ -413,38 +480,6 @@ export default function App() {
           recommendedProcessor = p;
           recommendedProcessorCount = pProcessorsNeeded;
         }
-      }
-    }
-
-    // Build output groups for pixel map (with connections at extremes)
-    const outputGroups = [];
-    let outputIndex = 0;
-    let processorIndex = 0;
-
-    for (let line = 0; line < numLines; line++) {
-      // Determine which processor this line belongs to
-      while (processorIndex < processorDistribution.length - 1 &&
-             line > processorDistribution[processorIndex].endLine) {
-        processorIndex++;
-      }
-
-      const modulesInLine = [];
-      for (let pos = 0; pos < lineSize; pos++) {
-        if (isHorizontal) {
-          modulesInLine.push({ row: line, col: pos });
-        } else {
-          modulesInLine.push({ row: pos, col: line });
-        }
-      }
-
-      // Split line into outputs
-      for (let i = 0; i < modulesInLine.length; i += effectiveModulesPerOutput) {
-        const group = modulesInLine.slice(i, i + effectiveModulesPerOutput);
-        outputGroups.push({
-          modules: group,
-          outputIndex: outputIndex++,
-          processorIndex
-        });
       }
     }
 
