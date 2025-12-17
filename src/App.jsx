@@ -394,13 +394,24 @@ export default function App() {
 
     const totalOutputsAvailable = processorsNeeded * proc.outputs;
 
-    // Build serpentine path for the entire screen
-    const buildSerpentinePath = () => {
+    // Determine if we need serpentine (outputs cross lines) or simple (each line = outputs)
+    // If lineSize <= effectiveModulesPerOutput, each line fits in one output, no serpentine needed
+    const needsSerpentine = lineSize > effectiveModulesPerOutput;
+
+    // Build path for the screen
+    const buildPath = () => {
       const path = [];
       for (let line = 0; line < numLines; line++) {
-        // Determine direction based on line number and start direction
-        const isEvenLine = line % 2 === 0;
-        const goForward = isReverseStart ? !isEvenLine : isEvenLine;
+        // If serpentine needed, alternate direction; otherwise always same direction from same edge
+        let goForward;
+        if (needsSerpentine) {
+          // Serpentine: alternate direction each line
+          const isEvenLine = line % 2 === 0;
+          goForward = isReverseStart ? !isEvenLine : isEvenLine;
+        } else {
+          // No serpentine: all lines go same direction (all connections at same edge)
+          goForward = !isReverseStart;
+        }
 
         for (let pos = 0; pos < lineSize; pos++) {
           const actualPos = goForward ? pos : (lineSize - 1 - pos);
@@ -414,7 +425,7 @@ export default function App() {
       return path;
     };
 
-    const serpentinePath = buildSerpentinePath();
+    const serpentinePath = buildPath();
 
     // Build output groups following serpentine within each processor's lines
     const outputGroups = [];
@@ -1269,6 +1280,53 @@ Calculadora para Pantallas LED - Euforía Técnica y Logística
                     <p className="text-lg font-bold">{results.hangingPointsTotal} pts</p>
                     <p className="text-xs text-gray-500">SWL: {results.safeWorkingLoad}kg</p>
                   </div>
+                </div>
+
+                {/* Aspect Ratio Visualization */}
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold mb-3">Aspect Ratio: {results.aspectRatio}:1</h3>
+                  <div className="flex items-center justify-center mb-3">
+                    <div
+                      className="relative bg-gray-600 flex items-center justify-center"
+                      style={{
+                        width: '200px',
+                        height: `${Math.min(150, 200 / parseFloat(results.aspectRatio))}px`
+                      }}
+                    >
+                      <div
+                        className="absolute bg-blue-500 flex items-center justify-center text-xs font-medium"
+                        style={{
+                          width: results.pillarbox > 0
+                            ? `${(results.contentW / results.resolutionW) * 100}%`
+                            : '100%',
+                          height: results.letterbox > 0
+                            ? `${(results.contentH / results.resolutionH) * 100}%`
+                            : '100%'
+                        }}
+                      >
+                        {results.closestRatio.name}
+                      </div>
+                      {results.letterbox > 0 && (
+                        <span className="absolute top-1 text-xs text-gray-300">Letterbox</span>
+                      )}
+                      {results.pillarbox > 0 && (
+                        <span className="absolute left-1 text-xs text-gray-300" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Pillar</span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-center text-sm text-gray-400">
+                    Estándar más cercano: {results.closestRatio.name} ({results.closestRatio.w}×{results.closestRatio.h})
+                  </p>
+                  {results.letterbox > 0 && (
+                    <p className="text-center text-xs text-yellow-400">
+                      Letterbox: {results.letterbox}px ({((results.letterbox / results.resolutionH) * 100).toFixed(1)}%)
+                    </p>
+                  )}
+                  {results.pillarbox > 0 && (
+                    <p className="text-center text-xs text-yellow-400">
+                      Pillarbox: {results.pillarbox}px ({((results.pillarbox / results.resolutionW) * 100).toFixed(1)}%)
+                    </p>
+                  )}
                 </div>
 
                 {/* Processor Status */}
