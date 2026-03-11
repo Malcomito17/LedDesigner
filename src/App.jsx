@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Calculator, Grid, Settings, Download, Plus, Trash2, Save, Upload, Edit2, X, Check, Copy, FolderOpen, ChevronDown, Cloud, CloudOff, Lock, Layers, ExternalLink, Star, LogOut } from 'lucide-react';
+import { Calculator, Grid, Settings, Download, Plus, Trash2, Save, Upload, Edit2, X, Check, Copy, FolderOpen, ChevronDown, Cloud, CloudOff, Lock, Layers, ExternalLink, Star, LogOut, Search } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -209,6 +209,152 @@ const DEFAULT_MODULES = {
     viewingAngleV: 140,
     minCurveRadius: 1,
     modulesPerCase: 8
+  },
+
+  // ==================== ABSEN ====================
+  'absen-pl19-plus-v2': {
+    id: 'absen-pl19-plus-v2', name: 'Absen PL1.9 Plus V2', description: 'Indoor rental alta resolución - Polaris V2',
+    pixelsW: 256, pixelsH: 256, width: 50, height: 50, weight: 9, power: 150,
+    hangingPoints: 2, brightness: 1200, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'absen-pl25-plus-v2': {
+    id: 'absen-pl25-plus-v2', name: 'Absen PL2.5 Plus V2', description: 'Indoor rental versátil - Polaris V2',
+    pixelsW: 200, pixelsH: 200, width: 50, height: 50, weight: 7.8, power: 140,
+    hangingPoints: 2, brightness: 1200, refreshRate: 7680, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'absen-pl29-pro-v2': {
+    id: 'absen-pl29-pro-v2', name: 'Absen PL2.9 Pro V2', description: 'Indoor/Outdoor rental HDR10 - Polaris V2',
+    pixelsW: 168, pixelsH: 168, width: 50, height: 50, weight: 9.5, power: 200,
+    hangingPoints: 2, brightness: 3000, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: 1, modulesPerCase: 6
+  },
+  'absen-pl39-pro-v2': {
+    id: 'absen-pl39-pro-v2', name: 'Absen PL3.9 Pro V2', description: 'Outdoor rental alta luminosidad - Polaris V2',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 9.5, power: 220,
+    hangingPoints: 2, brightness: 4500, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: 1, modulesPerCase: 6
+  },
+  'absen-pl48-pro-v2': {
+    id: 'absen-pl48-pro-v2', name: 'Absen PL4.8 Pro V2', description: 'Outdoor rental gran formato - Polaris V2',
+    pixelsW: 104, pixelsH: 208, width: 50, height: 100, weight: 12.5, power: 240,
+    hangingPoints: 4, brightness: 4000, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: 1, modulesPerCase: 4
+  },
+
+  // ==================== ROE VISUAL ====================
+  'roe-bp2-v2': {
+    id: 'roe-bp2-v2', name: 'ROE Black Pearl BP2 V2', description: 'Virtual production & broadcast - 2.84mm',
+    pixelsW: 176, pixelsH: 176, width: 50, height: 50, weight: 9.35, power: 160,
+    hangingPoints: 2, brightness: 1500, refreshRate: 7680, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'roe-bp3': {
+    id: 'roe-bp3', name: 'ROE Black Pearl BP3', description: 'Indoor rental & broadcast - 3.9mm',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 8.7, power: 170,
+    hangingPoints: 2, brightness: 1500, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'roe-cb5': {
+    id: 'roe-cb5', name: 'ROE Carbon CB5', description: 'Touring outdoor - Carbon Series 5.77mm',
+    pixelsW: 104, pixelsH: 208, width: 60, height: 120, weight: 18, power: 280,
+    hangingPoints: 4, brightness: 6000, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 110, minCurveRadius: null, modulesPerCase: 4
+  },
+  'roe-ruby-26': {
+    id: 'roe-ruby-26', name: 'ROE Ruby RB2.6', description: 'Film & broadcast - Ruby Series 2.6mm',
+    pixelsW: 192, pixelsH: 192, width: 50, height: 50, weight: 9, power: 150,
+    hangingPoints: 2, brightness: 1500, refreshRate: 7680, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+
+  // ==================== UNILUMIN ====================
+  'unilumin-upadiii-26': {
+    id: 'unilumin-upadiii-26', name: 'Unilumin UpadIII P2.6', description: 'Indoor rental alta resolución',
+    pixelsW: 192, pixelsH: 192, width: 50, height: 50, weight: 9, power: 150,
+    hangingPoints: 2, brightness: 1200, refreshRate: 2880, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+  'unilumin-upadiii-39': {
+    id: 'unilumin-upadiii-39', name: 'Unilumin UpadIII P3.9', description: 'Indoor rental estándar',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 9, power: 150,
+    hangingPoints: 2, brightness: 1200, refreshRate: 2880, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+  'unilumin-urmiii-39': {
+    id: 'unilumin-urmiii-39', name: 'Unilumin URMIII P3.9', description: 'Outdoor rental IP65',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 8, power: 200,
+    hangingPoints: 2, brightness: 3500, refreshRate: 7680, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: 1, modulesPerCase: 6
+  },
+
+  // ==================== DESAY ====================
+  'desay-x26i': {
+    id: 'desay-x26i', name: 'Desay X2.6i', description: 'Indoor rental premium - X Series',
+    pixelsW: 192, pixelsH: 192, width: 50, height: 50, weight: 10, power: 190,
+    hangingPoints: 2, brightness: 1500, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+  'desay-x29i': {
+    id: 'desay-x29i', name: 'Desay X2.9i', description: 'Indoor rental versátil - X Series',
+    pixelsW: 168, pixelsH: 168, width: 50, height: 50, weight: 10, power: 190,
+    hangingPoints: 2, brightness: 1500, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+  'desay-x39i': {
+    id: 'desay-x39i', name: 'Desay X3.9i', description: 'Indoor rental estándar - X Series',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 10, power: 190,
+    hangingPoints: 2, brightness: 1500, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+
+  // ==================== INFiLED ====================
+  'infiled-er29': {
+    id: 'infiled-er29', name: 'INFiLED ER2.9', description: 'Indoor rental touring - ER Series',
+    pixelsW: 168, pixelsH: 168, width: 50, height: 50, weight: 12.5, power: 160,
+    hangingPoints: 2, brightness: 1500, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 120, minCurveRadius: null, modulesPerCase: 6
+  },
+  'infiled-ar39': {
+    id: 'infiled-ar39', name: 'INFiLED AR3.9', description: 'Outdoor rental IP65 - AR Series',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 13, power: 180,
+    hangingPoints: 2, brightness: 5000, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 160, viewingAngleV: 155, minCurveRadius: 1, modulesPerCase: 6
+  },
+
+  // ==================== CHAUVET / ELATION ====================
+  'chauvet-pvpx3': {
+    id: 'chauvet-pvpx3', name: 'Chauvet PVP X3', description: 'Indoor rental & install - 3.9mm',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 8.5, power: 125,
+    hangingPoints: 2, brightness: 1560, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 130, viewingAngleV: 130, minCurveRadius: null, modulesPerCase: 6
+  },
+  'elation-evhd3': {
+    id: 'elation-evhd3', name: 'Elation EVHD3', description: 'Indoor rental - 3.9mm black face SMD',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 8.5, power: 125,
+    hangingPoints: 2, brightness: 1200, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+
+  // ==================== LEYARD / LIGHTKING ====================
+  'leyard-tvh19': {
+    id: 'leyard-tvh19', name: 'Leyard TVH1.9', description: 'Fine pitch install/rental - TVH Series',
+    pixelsW: 256, pixelsH: 192, width: 50, height: 37.5, weight: 6.3, power: 120,
+    hangingPoints: 2, brightness: 800, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 160, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'lightking-clite-26': {
+    id: 'lightking-clite-26', name: 'Lightking C-Lite P2.6', description: 'Indoor rental alta resolución',
+    pixelsW: 192, pixelsH: 192, width: 50, height: 50, weight: 8.5, power: 160,
+    hangingPoints: 2, brightness: 1200, refreshRate: 3840, ipRating: 'IP20',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: null, modulesPerCase: 6
+  },
+  'lightking-clite-39': {
+    id: 'lightking-clite-39', name: 'Lightking C-Lite P3.9', description: 'Outdoor rental estándar',
+    pixelsW: 128, pixelsH: 128, width: 50, height: 50, weight: 8.5, power: 180,
+    hangingPoints: 2, brightness: 4500, refreshRate: 3840, ipRating: 'IP65',
+    viewingAngleH: 140, viewingAngleV: 140, minCurveRadius: 1, modulesPerCase: 6
   }
 };
 
@@ -696,6 +842,12 @@ export default function App() {
   const [groupIndexStart, setGroupIndexStart] = useState(1);
   const [routingStrategy, setRoutingStrategy] = useState('snake');
   const [startCorner, setStartCorner] = useState('top-left');
+
+  // ==================== SEARCH STATE ====================
+  const [moduleSearch, setModuleSearch] = useState('');
+  const [processorSearch, setProcessorSearch] = useState('');
+  const [configModuleSearch, setConfigModuleSearch] = useState('');
+  const [configProcessorSearch, setConfigProcessorSearch] = useState('');
 
   // ==================== UI STATE ====================
   const [editingModuleId, setEditingModuleId] = useState(null);
@@ -1314,6 +1466,27 @@ export default function App() {
       isHorizontal, lineSize, numLines
     };
   };
+
+  // Filtered lists for search
+  const filterModules = (search) => {
+    const q = search.toLowerCase();
+    return Object.values(modules).filter(m =>
+      !q || m.name.toLowerCase().includes(q) || (m.description || '').toLowerCase().includes(q) ||
+      (m.ipRating || '').toLowerCase().includes(q)
+    );
+  };
+  const filterProcessors = (search) => {
+    const q = search.toLowerCase();
+    return Object.values(processors).filter(p =>
+      !q || (p.brand || '').toLowerCase().includes(q) || (p.model || '').toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q)
+    );
+  };
+
+  const filteredModules = filterModules(moduleSearch);
+  const filteredProcessors = filterProcessors(processorSearch);
+  const configFilteredModules = filterModules(configModuleSearch);
+  const configFilteredProcessors = filterProcessors(configProcessorSearch);
 
   const results = calculate();
 
@@ -2253,19 +2426,30 @@ export default function App() {
             <div className="bg-gray-800 rounded-lg p-4">
               <h2 className="text-lg font-semibold mb-4">Configuración de Pantalla</h2>
 
-              {/* Module Selection */}
+              {/* Module Selection with Search */}
               <div className="mb-4">
                 <label className="block text-sm text-gray-400 mb-2">Módulo LED</label>
+                <input
+                  type="text"
+                  value={moduleSearch}
+                  onChange={(e) => setModuleSearch(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 mb-2 text-sm"
+                  placeholder="Buscar módulo (marca, modelo, IP...)"
+                />
                 <select
                   value={selectedModule}
                   onChange={(e) => setSelectedModule(e.target.value)}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+                  size={moduleSearch ? Math.min(8, filteredModules.length) : 1}
                 >
-                  {Object.values(modules).map(mod => (
-                    <option key={mod.id} value={mod.id}>
-                      {mod.name} ({mod.width}×{mod.height}cm)
-                    </option>
-                  ))}
+                  {filteredModules.map(mod => {
+                    const pitch = ((mod.width * 10) / mod.pixelsW).toFixed(1);
+                    return (
+                      <option key={mod.id} value={mod.id}>
+                        {mod.name} — P{pitch} — {mod.width}×{mod.height}cm — {mod.ipRating || 'IP20'}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -2339,17 +2523,25 @@ export default function App() {
                 )}
               </div>
 
-              {/* Processor Selection */}
+              {/* Processor Selection with Search */}
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Procesador</label>
+                <input
+                  type="text"
+                  value={processorSearch}
+                  onChange={(e) => setProcessorSearch(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 mb-2 text-sm"
+                  placeholder="Buscar procesador (marca, modelo...)"
+                />
                 <select
                   value={selectedProcessor}
                   onChange={(e) => setSelectedProcessor(e.target.value)}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+                  size={processorSearch ? Math.min(8, filteredProcessors.length) : 1}
                 >
-                  {Object.values(processors).map(proc => (
+                  {filteredProcessors.map(proc => (
                     <option key={proc.id} value={proc.id}>
-                      {proc.brand} {proc.model} ({proc.outputs} out)
+                      {proc.brand} {proc.model} — {proc.outputs} out — {(proc.totalPixels / 1000000).toFixed(1)}MP
                     </option>
                   ))}
                 </select>
@@ -2782,10 +2974,24 @@ export default function App() {
 
             {/* Modules Config */}
             <div className="bg-gray-800 rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-3">Módulos LED</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Módulos LED</h2>
+                <span className="text-xs text-gray-400">{Object.keys(modules).length} módulos</span>
+              </div>
 
-              <div className="space-y-2 mb-4">
-                {Object.values(modules).map(mod => (
+              <div className="relative mb-3">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={configModuleSearch}
+                  onChange={(e) => setConfigModuleSearch(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 pl-9 text-sm"
+                  placeholder="Buscar módulo por nombre, marca, IP..."
+                />
+              </div>
+
+              <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
+                {configFilteredModules.map(mod => (
                   <div key={mod.id} className="bg-gray-700 rounded p-3">
                     {editingModuleId === mod.id ? (
                       <div className="space-y-2">
@@ -2961,10 +3167,24 @@ export default function App() {
 
             {/* Processors Config */}
             <div className="bg-gray-800 rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-3">Procesadores</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Procesadores</h2>
+                <span className="text-xs text-gray-400">{Object.keys(processors).length} procesadores</span>
+              </div>
 
-              <div className="space-y-2 mb-4">
-                {Object.values(processors).map(proc => {
+              <div className="relative mb-3">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={configProcessorSearch}
+                  onChange={(e) => setConfigProcessorSearch(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 pl-9 text-sm"
+                  placeholder="Buscar procesador por marca, modelo..."
+                />
+              </div>
+
+              <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
+                {configFilteredProcessors.map(proc => {
                   const maxOptions = getMaxModulesOptions(proc);
                   return (
                     <div key={proc.id} className="bg-gray-700 rounded p-3">
