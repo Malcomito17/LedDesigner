@@ -1720,7 +1720,7 @@ export default function App() {
   };
 
   // ==================== PDF GENERATION HELPERS ====================
-  const loadLogoAsDataURL = () => {
+  const loadImageAsDataURL = (src) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'Anonymous';
@@ -1733,17 +1733,12 @@ export default function App() {
         resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = () => resolve(null);
-      img.src = '/logo_euforia.png';
+      img.src = src;
     });
   };
 
-  const addPDFHeader = (doc, logoDataURL, title, projectName) => {
+  const addPDFHeader = (doc, _unused, title, projectName) => {
     const pageWidth = doc.internal.pageSize.getWidth();
-
-    // Logo
-    if (logoDataURL) {
-      doc.addImage(logoDataURL, 'PNG', 15, 10, 40, 20);
-    }
 
     // Title
     doc.setFontSize(18);
@@ -1770,17 +1765,24 @@ export default function App() {
     return 50; // Return Y position after header
   };
 
-  const addPDFFooter = (doc) => {
+  const addPDFFooter = (doc, backstageLogoDataURL) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
     doc.setDrawColor(0, 150, 200);
     doc.setLineWidth(0.5);
-    doc.line(15, pageHeight - 20, pageWidth - 15, pageHeight - 20);
+    doc.line(15, pageHeight - 30, pageWidth - 15, pageHeight - 30);
 
-    doc.setFontSize(9);
+    // Backstage logo
+    if (backstageLogoDataURL) {
+      doc.addImage(backstageLogoDataURL, 'PNG', pageWidth / 2 - 10, pageHeight - 28, 20, 14);
+    }
+
+    doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
-    doc.text('Euforía Técnica y Logística', pageWidth / 2, pageHeight - 12, { align: 'center' });
+    doc.text('Generado por LED Designer, parte de la suite BACKSTAGE de Euforía Técnica y Logística para Eventos', pageWidth / 2, pageHeight - 12, { align: 'center' });
+    doc.setFontSize(6);
+    doc.text('Los cálculos son aproximados en base a medidas y fórmulas estándar.', pageWidth / 2, pageHeight - 7, { align: 'center' });
     doc.setTextColor(0, 0, 0);
   };
 
@@ -1810,9 +1812,9 @@ export default function App() {
     if (!results) return;
 
     const doc = new jsPDF();
-    const logoDataURL = await loadLogoAsDataURL();
+    const backstageLogoDataURL = await loadImageAsDataURL('/backstage_logo.png');
 
-    let y = addPDFHeader(doc, logoDataURL, 'ESPECIFICACIONES COMERCIALES', projectName);
+    let y = addPDFHeader(doc, null, 'ESPECIFICACIONES COMERCIALES', projectName);
 
     // DIMENSIONES
     y = addPDFSection(doc, 'DIMENSIONES', y);
@@ -1900,7 +1902,7 @@ export default function App() {
     y = addPDFRow(doc, 'Tiempo montaje aprox', `${results.setupTimeHours} horas`, y);
     y = addPDFRow(doc, 'Tipo instalación', results.recommendFly ? 'Flying (rigging)' : 'Ground Stack', y);
 
-    addPDFFooter(doc);
+    addPDFFooter(doc, backstageLogoDataURL);
 
     doc.save(`comercial_${projectName.replace(/\s+/g, '_')}.pdf`);
   };
@@ -1909,7 +1911,7 @@ export default function App() {
     if (!results) return;
 
     const doc = new jsPDF();
-    const logoDataURL = await loadLogoAsDataURL();
+    const backstageLogoDataURL = await loadImageAsDataURL('/backstage_logo.png');
     const pageHeight = doc.internal.pageSize.getHeight();
 
     const checkNewPage = (currentY, neededSpace = 40) => {
@@ -1920,7 +1922,7 @@ export default function App() {
       return currentY;
     };
 
-    let y = addPDFHeader(doc, logoDataURL, 'ESPECIFICACIONES TÉCNICAS', projectName);
+    let y = addPDFHeader(doc, null, 'ESPECIFICACIONES TÉCNICAS', projectName);
 
     // CONFIGURACIÓN DE MÓDULO
     y = addPDFSection(doc, 'CONFIGURACIÓN DE MÓDULO', y);
@@ -2073,7 +2075,7 @@ export default function App() {
       });
     }
 
-    addPDFFooter(doc);
+    addPDFFooter(doc, backstageLogoDataURL);
 
     doc.save(`tecnico_${projectName.replace(/\s+/g, '_')}.pdf`);
   };
@@ -2631,7 +2633,7 @@ export default function App() {
                         <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Gestión de proyectos y eventos</li>
                       </ul>
                       <a
-                        href="https://backstage.euforiateclog.cloud"
+                        href="https://www.euforiateclog.cloud"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 mt-3 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -2643,23 +2645,31 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Export Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={exportCommercial}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded flex items-center justify-center gap-2"
-                  >
-                    <Download size={18} />
-                    Comercial
-                  </button>
-                  <button
-                    onClick={exportTechnical}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 py-2 px-4 rounded flex items-center justify-center gap-2"
-                  >
-                    <Download size={18} />
-                    Técnico
-                  </button>
+                {/* Reportes */}
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold mb-3">Reportes</h3>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={exportCommercial}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded flex items-center justify-center gap-2"
+                    >
+                      <Download size={18} />
+                      Comercial
+                    </button>
+                    <button
+                      onClick={exportTechnical}
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 py-2 px-4 rounded flex items-center justify-center gap-2"
+                    >
+                      <Download size={18} />
+                      Técnico
+                    </button>
+                  </div>
                 </div>
+
+                {/* Disclaimer */}
+                <p className="text-xs text-gray-500 text-center italic">
+                  Los cálculos son aproximados en base a medidas y fórmulas estándar.
+                </p>
               </>
             )}
           </div>
@@ -3105,6 +3115,19 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-700 mt-8 py-6 px-4">
+        <div className="max-w-4xl mx-auto flex flex-col items-center gap-3">
+          <img src="/backstage_logo.png" alt="Backstage" className="h-12 opacity-60" />
+          <p className="text-xs text-gray-500 text-center">
+            Generado por <strong className="text-gray-400">LED Designer</strong>, parte de la suite <strong className="text-gray-400">BACKSTAGE</strong> de Euforía Técnica y Logística para Eventos
+          </p>
+          <p className="text-xs text-gray-600 text-center italic">
+            Los cálculos son aproximados en base a medidas y fórmulas estándar.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
