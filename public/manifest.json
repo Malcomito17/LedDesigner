@@ -1,0 +1,21 @@
+{
+  "name": "LED Designer - Euforia Tools",
+  "short_name": "LED Designer",
+  "description": "Calculadora profesional para pantallas LED",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/brand/favicon/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/favicon/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

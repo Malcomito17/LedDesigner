@@ -1,10 +1,174 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Grid, Settings, Download, Plus, Trash2, Save, Upload, Edit2, X, Check, Copy, FolderOpen, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Calculator, Grid, Settings, Download, Plus, Trash2, Save, Upload, Edit2, X, Check, Copy, FolderOpen, ChevronDown, Cloud, CloudOff, Lock, Layers, ExternalLink, Star, LogOut } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 // ==================== UTILITY FUNCTIONS ====================
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const generateSlug = (name) => name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+// ==================== API HELPER ====================
+async function apiCall(endpoint, options = {}) {
+  const token = localStorage.getItem('led-auth-token');
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (token) headers['X-Auth-Token'] = token;
+  const res = await fetch(endpoint, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Error' }));
+    throw new Error(err.error || 'Error');
+  }
+  return res.json();
+}
+
+// ==================== ROUTING STRATEGIES ====================
+const ROUTING_STRATEGIES = {
+  'snake': { label: 'Snake (clásico)', description: 'Zigzag continuo, cortes donde caiga' },
+  'row-aligned': { label: 'Filas completas', description: 'Cada output cubre filas enteras' },
+  'column-aligned': { label: 'Columnas completas', description: 'Cada output cubre columnas enteras' },
+  'edge-priority': { label: 'Snake borde', description: 'Snake con cortes ajustados al borde' },
+  'auto': { label: 'Automático', description: 'Elige la mejor estrategia' },
+};
+
+const START_CORNERS = {
+  'top-left': { label: '↘ Arriba-Izq' },
+  'top-right': { label: '↙ Arriba-Der' },
+  'bottom-left': { label: '↗ Abajo-Izq' },
+  'bottom-right': { label: '↖ Abajo-Der' },
+};
+
+function buildSnakePath(cols, rows, startCorner) {
+  const path = [];
+  const startRight = startCorner === 'top-left' || startCorner === 'bottom-left';
+  const startTop = startCorner === 'top-left' || startCorner === 'top-right';
+  for (let r = 0; r < rows; r++) {
+    const actualRow = startTop ? r : (rows - 1 - r);
+    const goRight = (r % 2 === 0) ? startRight : !startRight;
+    for (let c = 0; c < cols; c++) {
+      const actualCol = goRight ? c : (cols - 1 - c);
+      path.push({ row: actualRow, col: actualCol });
+    }
+  }
+  return path;
+}
+
+function generateSnakeRouting(cols, rows, modulesPerOutput, startCorner) {
+  const path = buildSnakePath(cols, rows, startCorner);
+  const groups = [];
+  for (let i = 0; i < path.length; i += modulesPerOutput) {
+    groups.push(path.slice(i, i + modulesPerOutput));
+  }
+  return { groups, strategyUsed: 'snake' };
+}
+
+function generateRowAlignedRouting(cols, rows, modulesPerOutput, startCorner) {
+  const path = buildSnakePath(cols, rows, startCorner);
+  const groups = [];
+  let current = [];
+  let currentRow = path[0]?.row;
+  for (const mod of path) {
+    if (mod.row !== currentRow && current.length > 0) {
+      if (current.length + cols > modulesPerOutput) {
+        groups.push([...current]);
+        current = [];
+      }
+      currentRow = mod.row;
+    }
+    current.push(mod);
+    if (current.length >= modulesPerOutput) {
+      groups.push([...current]);
+      current = [];
+      currentRow = mod.row;
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  return { groups, strategyUsed: 'row-aligned' };
+}
+
+function generateColumnAlignedRouting(cols, rows, modulesPerOutput, startCorner) {
+  const path = [];
+  const startRight = startCorner === 'top-left' || startCorner === 'bottom-left';
+  const startTop = startCorner === 'top-left' || startCorner === 'top-right';
+  for (let c = 0; c < cols; c++) {
+    const actualCol = startRight ? c : (cols - 1 - c);
+    const goDown = (c % 2 === 0) ? startTop : !startTop;
+    for (let r = 0; r < rows; r++) {
+      const actualRow = goDown ? r : (rows - 1 - r);
+      path.push({ row: actualRow, col: actualCol });
+    }
+  }
+  const groups = [];
+  let current = [];
+  let currentCol = path[0]?.col;
+  for (const mod of path) {
+    if (mod.col !== currentCol && current.length > 0) {
+      if (current.length + rows > modulesPerOutput) {
+        groups.push([...current]);
+        current = [];
+      }
+      currentCol = mod.col;
+    }
+    current.push(mod);
+    if (current.length >= modulesPerOutput) {
+      groups.push([...current]);
+      current = [];
+      currentCol = mod.col;
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  return { groups, strategyUsed: 'column-aligned' };
+}
+
+function generateEdgePriorityRouting(cols, rows, modulesPerOutput, startCorner) {
+  const path = buildSnakePath(cols, rows, startCorner);
+  const groups = [];
+  let current = [];
+  for (let i = 0; i < path.length; i++) {
+    current.push(path[i]);
+    if (current.length >= modulesPerOutput) {
+      const nextMod = path[i + 1];
+      if (!nextMod || nextMod.col === 0 || nextMod.col === cols - 1 || nextMod.row !== path[i].row) {
+        groups.push([...current]);
+        current = [];
+      } else if (current.length >= modulesPerOutput + Math.min(3, cols)) {
+        groups.push([...current]);
+        current = [];
+      }
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  return { groups, strategyUsed: 'edge-priority' };
+}
+
+function generateAutoRouting(cols, rows, modulesPerOutput, startCorner) {
+  const strategies = [
+    generateSnakeRouting(cols, rows, modulesPerOutput, startCorner),
+    generateRowAlignedRouting(cols, rows, modulesPerOutput, startCorner),
+    generateColumnAlignedRouting(cols, rows, modulesPerOutput, startCorner),
+    generateEdgePriorityRouting(cols, rows, modulesPerOutput, startCorner),
+  ];
+  let best = strategies[0];
+  let bestScore = -1;
+  for (const s of strategies) {
+    let edgeEntries = 0;
+    for (const group of s.groups) {
+      if (group.length === 0) continue;
+      const first = group[0];
+      if (first.col === 0 || first.col === cols - 1 || first.row === 0 || first.row === rows - 1) edgeEntries++;
+    }
+    const score = edgeEntries / Math.max(1, s.groups.length);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  return { ...best, strategyUsed: 'auto (' + best.strategyUsed + ')' };
+}
+
+function generateRouting(strategy, cols, rows, modulesPerOutput, startCorner) {
+  switch (strategy) {
+    case 'row-aligned': return generateRowAlignedRouting(cols, rows, modulesPerOutput, startCorner);
+    case 'column-aligned': return generateColumnAlignedRouting(cols, rows, modulesPerOutput, startCorner);
+    case 'edge-priority': return generateEdgePriorityRouting(cols, rows, modulesPerOutput, startCorner);
+    case 'auto': return generateAutoRouting(cols, rows, modulesPerOutput, startCorner);
+    default: return generateSnakeRouting(cols, rows, modulesPerOutput, startCorner);
+  }
+}
 
 // ==================== DEFAULT DATA ====================
 const DEFAULT_MODULES = {
@@ -530,6 +694,8 @@ export default function App() {
   const [wiringPattern, setWiringPattern] = useState('horizontal-right');
   const [colorScheme, setColorScheme] = useState('cyan-magenta');
   const [groupIndexStart, setGroupIndexStart] = useState(1);
+  const [routingStrategy, setRoutingStrategy] = useState('snake');
+  const [startCorner, setStartCorner] = useState('top-left');
 
   // ==================== UI STATE ====================
   const [editingModuleId, setEditingModuleId] = useState(null);
@@ -547,6 +713,16 @@ export default function App() {
     totalPixels: '', maxWidth: '', maxHeight: '', maxModulesPerOutput: '',
     maxInputResolution: '1080p', layers: '', hasGenlock: false, hasBackupInput: false
   });
+
+  // ==================== AUTH STATE ====================
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('led-auth-token'));
+  const [authAlias, setAuthAlias] = useState(() => localStorage.getItem('led-auth-alias') || '');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [authForm, setAuthForm] = useState({ alias: '', pin: '' });
+  const [authError, setAuthError] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncTimeoutRef = useRef(null);
 
   // Color schemes for pixel map (visual)
   const colorSchemes = {
@@ -583,7 +759,8 @@ export default function App() {
       config: {
         selectedModule, selectedProcessor, inputMode,
         widthModules, heightModules, widthCm, heightCm,
-        wiringPattern, colorScheme, groupIndexStart
+        wiringPattern, colorScheme, groupIndexStart,
+        routingStrategy, startCorner
       }
     };
 
@@ -598,11 +775,24 @@ export default function App() {
 
     setProjects(updatedProjects);
 
-    localStorage.setItem('led-designer-data', JSON.stringify({
+    const dataPayload = {
       modules, processors,
       projects: updatedProjects,
       activeProjectId: currentProject.id
-    }));
+    };
+
+    localStorage.setItem('led-designer-data', JSON.stringify(dataPayload));
+
+    // Cloud sync (debounced)
+    if (authToken) {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = setTimeout(() => {
+        apiCall('/api/sync', {
+          method: 'PUT',
+          body: JSON.stringify({ data: dataPayload })
+        }).catch(() => {});
+      }, 5000);
+    }
   };
 
   // Auto-save on changes
@@ -610,7 +800,76 @@ export default function App() {
     const timeout = setTimeout(saveAllData, 500);
     return () => clearTimeout(timeout);
   }, [projectName, selectedModule, selectedProcessor, inputMode, widthModules, heightModules,
-      widthCm, heightCm, wiringPattern, colorScheme, groupIndexStart, modules, processors]);
+      widthCm, heightCm, wiringPattern, colorScheme, groupIndexStart, modules, processors,
+      routingStrategy, startCorner]);
+
+  // ==================== AUTH FUNCTIONS ====================
+  const handleAuth = async () => {
+    setAuthError('');
+    try {
+      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const result = await apiCall(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(authForm)
+      });
+      localStorage.setItem('led-auth-token', result.token);
+      localStorage.setItem('led-auth-alias', result.alias);
+      setAuthToken(result.token);
+      setAuthAlias(result.alias);
+      setShowAuthModal(false);
+      setAuthForm({ alias: '', pin: '' });
+    } catch (err) {
+      setAuthError(err.message);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('led-auth-token');
+    localStorage.removeItem('led-auth-alias');
+    setAuthToken(null);
+    setAuthAlias('');
+  };
+
+  const syncToCloud = async () => {
+    if (!authToken) return;
+    setIsSyncing(true);
+    try {
+      const dataPayload = {
+        modules, processors, projects,
+        activeProjectId
+      };
+      await apiCall('/api/sync', {
+        method: 'PUT',
+        body: JSON.stringify({ data: dataPayload })
+      });
+    } catch {
+      alert('Error al sincronizar');
+    }
+    setIsSyncing(false);
+  };
+
+  const syncFromCloud = async () => {
+    if (!authToken) return;
+    setIsSyncing(true);
+    try {
+      const result = await apiCall('/api/sync');
+      if (result.data) {
+        if (result.data.modules) setModules({ ...DEFAULT_MODULES, ...result.data.modules });
+        if (result.data.processors) setProcessors({ ...DEFAULT_PROCESSORS, ...result.data.processors });
+        if (result.data.projects) setProjects(result.data.projects);
+        if (result.data.activeProjectId && result.data.projects?.[result.data.activeProjectId]) {
+          loadProject(result.data.projects[result.data.activeProjectId]);
+          setActiveProjectId(result.data.activeProjectId);
+        }
+        localStorage.setItem('led-designer-data', JSON.stringify(result.data));
+      } else {
+        alert('No hay datos en la nube');
+      }
+    } catch {
+      alert('Error al descargar datos');
+    }
+    setIsSyncing(false);
+  };
 
   const loadProject = (project) => {
     setProjectName(project.name);
@@ -626,6 +885,8 @@ export default function App() {
       setWiringPattern(project.config.wiringPattern || 'horizontal-right');
       setColorScheme(project.config.colorScheme || 'cyan-magenta');
       setGroupIndexStart(project.config.groupIndexStart || 1);
+      setRoutingStrategy(project.config.routingStrategy || 'snake');
+      setStartCorner(project.config.startCorner || 'top-left');
     }
   };
 
@@ -646,8 +907,43 @@ export default function App() {
         heightCm: 256,
         wiringPattern: 'horizontal-right',
         colorScheme: 'cyan-magenta',
-        groupIndexStart: 1
+        groupIndexStart: 1,
+        routingStrategy: 'snake',
+        startCorner: 'top-left'
       }
+    };
+    setProjects(prev => ({ ...prev, [newId]: newProject }));
+    loadProject(newProject);
+    setShowProjectMenu(false);
+  };
+
+  const saveAsTemplate = () => {
+    const templateId = generateId();
+    const template = {
+      id: templateId,
+      name: `[Plantilla] ${projectName}`,
+      isTemplate: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      config: {
+        selectedModule, selectedProcessor, inputMode,
+        widthModules, heightModules, widthCm, heightCm,
+        wiringPattern, colorScheme, groupIndexStart,
+        routingStrategy, startCorner
+      }
+    };
+    setProjects(prev => ({ ...prev, [templateId]: template }));
+    setShowProjectMenu(false);
+  };
+
+  const createFromTemplate = (template) => {
+    const newId = generateId();
+    const newProject = {
+      id: newId,
+      name: template.name.replace('[Plantilla] ', ''),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      config: { ...template.config }
     };
     setProjects(prev => ({ ...prev, [newId]: newProject }));
     loadProject(newProject);
@@ -664,7 +960,8 @@ export default function App() {
       config: {
         selectedModule, selectedProcessor, inputMode,
         widthModules, heightModules, widthCm, heightCm,
-        wiringPattern, colorScheme, groupIndexStart
+        wiringPattern, colorScheme, groupIndexStart,
+        routingStrategy, startCorner
       }
     };
     setProjects(prev => ({ ...prev, [newId]: newProject }));
@@ -802,66 +1099,43 @@ export default function App() {
 
     const totalOutputsAvailable = processorsNeeded * proc.outputs;
 
-    // Determine if we need serpentine (outputs cross lines) or simple (each line = outputs)
-    // If lineSize <= effectiveModulesPerOutput, each line fits in one output, no serpentine needed
-    const needsSerpentine = lineSize > effectiveModulesPerOutput;
+    // Generate routing using strategy
+    const routing = generateRouting(
+      routingStrategy,
+      finalWidthModules,
+      finalHeightModules,
+      effectiveModulesPerOutput,
+      startCorner
+    );
+    const routingStrategyUsed = routing.strategyUsed;
 
-    // Build path for the screen
-    const buildPath = () => {
-      const path = [];
-      for (let line = 0; line < numLines; line++) {
-        // If serpentine needed, alternate direction; otherwise always same direction from same edge
-        let goForward;
-        if (needsSerpentine) {
-          // Serpentine: alternate direction each line
-          const isEvenLine = line % 2 === 0;
-          goForward = isReverseStart ? !isEvenLine : isEvenLine;
-        } else {
-          // No serpentine: all lines go same direction (all connections at same edge)
-          goForward = !isReverseStart;
-        }
-
-        for (let pos = 0; pos < lineSize; pos++) {
-          const actualPos = goForward ? pos : (lineSize - 1 - pos);
-          if (isHorizontal) {
-            path.push({ row: line, col: actualPos, lineIndex: line });
-          } else {
-            path.push({ row: actualPos, col: line, lineIndex: line });
-          }
-        }
-      }
-      return path;
-    };
-
-    const serpentinePath = buildPath();
-
-    // Build output groups following serpentine within each processor's lines
+    // Build output groups with processor assignment
     const outputGroups = [];
+    let globalOutputIdx = 0;
 
     for (let procIdx = 0; procIdx < processorDistribution.length; procIdx++) {
       const procDist = processorDistribution[procIdx];
+      const outputsForThisProc = procDist.outputsUsed;
 
-      // Get all modules for this processor (complete lines only)
-      const procModules = serpentinePath.filter(
-        m => m.lineIndex >= procDist.startLine && m.lineIndex <= procDist.endLine
-      );
-
-      // Split into outputs (serpentine continuous within processor)
-      let localOutputIndex = 0;
-      for (let i = 0; i < procModules.length; i += effectiveModulesPerOutput) {
-        const group = procModules.slice(i, i + effectiveModulesPerOutput).map(m => ({
-          row: m.row,
-          col: m.col
-        }));
-
+      for (let o = 0; o < outputsForThisProc && globalOutputIdx < routing.groups.length; o++) {
         outputGroups.push({
-          modules: group,
-          outputIndex: procDist.startOutputIndex + localOutputIndex,
+          modules: routing.groups[globalOutputIdx].map(m => ({ row: m.row, col: m.col })),
+          outputIndex: globalOutputIdx,
           processorIndex: procIdx,
-          localOutputIndex: localOutputIndex + 1 // 1-based for display
+          localOutputIndex: o + 1
         });
-        localOutputIndex++;
+        globalOutputIdx++;
       }
+    }
+    // Any remaining groups go to last processor
+    while (globalOutputIdx < routing.groups.length) {
+      outputGroups.push({
+        modules: routing.groups[globalOutputIdx].map(m => ({ row: m.row, col: m.col })),
+        outputIndex: globalOutputIdx,
+        processorIndex: processorDistribution.length - 1,
+        localOutputIndex: globalOutputIdx + 1
+      });
+      globalOutputIdx++;
     }
 
     // Balanced distribution of modules per output
@@ -1031,6 +1305,9 @@ export default function App() {
       sliceDimensions,
       recommendedContentRes,
       broadcastSuitable,
+
+      // Routing
+      routingStrategyUsed,
 
       // References
       module: mod, processor: proc,
@@ -1235,7 +1512,7 @@ export default function App() {
     if (activeTab === 'pixelmap' && results) {
       generatePixelMap();
     }
-  }, [activeTab, results, selectedModule, wiringPattern, colorScheme, projectName, groupIndexStart]);
+  }, [activeTab, results, selectedModule, wiringPattern, colorScheme, projectName, groupIndexStart, routingStrategy, startCorner]);
 
   // ==================== MODULE FUNCTIONS ====================
   const addModule = () => {
@@ -1804,11 +2081,54 @@ export default function App() {
   // ==================== RENDER ====================
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowAuthModal(false)}>
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Lock size={18} /> Sincronización</h2>
+              <button onClick={() => setShowAuthModal(false)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => { setAuthMode('login'); setAuthError(''); }} className={`flex-1 py-2 rounded text-sm ${authMode === 'login' ? 'bg-blue-600' : 'bg-gray-700'}`}>Iniciar Sesión</button>
+              <button onClick={() => { setAuthMode('register'); setAuthError(''); }} className={`flex-1 py-2 rounded text-sm ${authMode === 'register' ? 'bg-blue-600' : 'bg-gray-700'}`}>Registrar</button>
+            </div>
+            <div className="space-y-3">
+              <input value={authForm.alias} onChange={e => setAuthForm(p => ({ ...p, alias: e.target.value }))} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="Alias (min 3 caracteres)" />
+              <input type="password" inputMode="numeric" maxLength={4} value={authForm.pin} onChange={e => setAuthForm(p => ({ ...p, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="PIN (4 dígitos)" />
+              {authError && <p className="text-red-400 text-sm">{authError}</p>}
+              <button onClick={handleAuth} className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded text-sm font-medium">{authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}</button>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">Guardá tus diseños en la nube con un alias y PIN de 4 dígitos. Accedé desde cualquier dispositivo.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-xl font-bold text-center">Calculadora para Pantallas LED</h1>
           <p className="text-xs text-gray-400 text-center">by Euforía Técnica y Logística para Eventos</p>
+
+          {/* Auth Bar */}
+          <div className="flex items-center justify-center gap-3 mt-2">
+            {authToken ? (
+              <>
+                <span className="text-xs text-green-400 flex items-center gap-1"><Cloud size={12} /> {authAlias}</span>
+                <button onClick={syncToCloud} disabled={isSyncing} className="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1">
+                  <Upload size={12} /> {isSyncing ? 'Sincronizando...' : 'Subir'}
+                </button>
+                <button onClick={syncFromCloud} disabled={isSyncing} className="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1">
+                  <Download size={12} /> Descargar
+                </button>
+                <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"><LogOut size={12} /></button>
+              </>
+            ) : (
+              <button onClick={() => setShowAuthModal(true)} className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded flex items-center gap-1">
+                <Cloud size={12} /> Sincronizar en la nube
+              </button>
+            )}
+          </div>
 
           {/* Project Selector */}
           <div className="mt-3 relative">
@@ -1838,7 +2158,28 @@ export default function App() {
                   >
                     <Copy size={16} /> Duplicar Actual
                   </button>
+                  <button
+                    onClick={saveAsTemplate}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-700 rounded flex items-center gap-2"
+                  >
+                    <Star size={16} /> Guardar como Plantilla
+                  </button>
                 </div>
+                {/* Templates */}
+                {Object.values(projects).some(p => p.isTemplate) && (
+                  <div className="p-2 border-b border-gray-700">
+                    <p className="text-xs text-gray-500 px-3 mb-1">Plantillas</p>
+                    {Object.values(projects).filter(p => p.isTemplate).map(tpl => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => createFromTemplate(tpl)}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        <Star size={14} className="text-yellow-400" /> {tpl.name.replace('[Plantilla] ', '')}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="max-h-48 overflow-y-auto">
                   {Object.values(projects).map(proj => (
                     <div
@@ -1849,8 +2190,9 @@ export default function App() {
                     >
                       <button
                         onClick={() => { loadProject(proj); setShowProjectMenu(false); }}
-                        className="flex-1 text-left"
+                        className="flex-1 text-left flex items-center gap-1"
                       >
+                        {proj.isTemplate && <Star size={12} className="text-yellow-400 shrink-0" />}
                         {proj.name}
                       </button>
                       {Object.keys(projects).length > 1 && (
@@ -2269,6 +2611,38 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Backstage Pro Banner */}
+                <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-indigo-500/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-indigo-500/20 rounded-lg p-2 mt-0.5 shrink-0">
+                      <Layers size={24} className="text-indigo-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-indigo-300">Desbloquea el poder completo</h3>
+                      <p className="text-sm text-gray-400 mt-1">
+                        Con <strong className="text-white">Backstage</strong> accedé al módulo completo con funcionalidades exclusivas:
+                      </p>
+                      <ul className="text-sm text-gray-400 mt-2 space-y-1">
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Diseño multi-pantalla (Canvas Mode)</li>
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Visualización 3D del venue</li>
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Posicionamiento espacial y montaje</li>
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Pool de procesadores compartidos</li>
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Reportes espaciales profesionales</li>
+                        <li className="flex items-center gap-2"><span className="text-indigo-400">→</span> Gestión de proyectos y eventos</li>
+                      </ul>
+                      <a
+                        href="https://backstage.euforiateclog.cloud"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 mt-3 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Conocer Backstage
+                        <ExternalLink size={14} />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Export Buttons */}
                 <div className="flex gap-3">
                   <button
@@ -2299,32 +2673,46 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Patrón de cableado</label>
+                  <label className="block text-sm text-gray-400 mb-2">Estrategia de ruteo</label>
                   <select
-                    value={wiringPattern}
-                    onChange={(e) => setWiringPattern(e.target.value)}
+                    value={routingStrategy}
+                    onChange={(e) => setRoutingStrategy(e.target.value)}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
                   >
-                    <option value="horizontal-right">Horizontal → (inicio izq)</option>
-                    <option value="horizontal-left">Horizontal ← (inicio der)</option>
-                    <option value="vertical-down">Vertical ↓ (inicio arriba)</option>
-                    <option value="vertical-up">Vertical ↑ (inicio abajo)</option>
+                    {Object.entries(ROUTING_STRATEGIES).map(([key, val]) => (
+                      <option key={key} value={key}>{val.label}</option>
+                    ))}
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">{ROUTING_STRATEGIES[routingStrategy]?.description}</p>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Grupo inicial</label>
-                  <input
-                    type="number"
-                    value={groupIndexStart}
-                    onChange={(e) => setGroupIndexStart(Math.max(1, parseInt(e.target.value) || 1))}
+                  <label className="block text-sm text-gray-400 mb-2">Esquina de inicio</label>
+                  <select
+                    value={startCorner}
+                    onChange={(e) => setStartCorner(e.target.value)}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
-                    min="1"
-                  />
+                  >
+                    {Object.entries(START_CORNERS).map(([key, val]) => (
+                      <option key={key} value={key}>{val.label}</option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">Grupo inicial</label>
+                <input
+                  type="number"
+                  value={groupIndexStart}
+                  onChange={(e) => setGroupIndexStart(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+                  min="1"
+                />
               </div>
 
               <p className="text-sm text-gray-400">
                 {results.resolutionW}×{results.resolutionH}px | {results.processorsNeeded} procesador(es) | {results.outputGroups.length} outputs
+                {results.routingStrategyUsed && <span className="text-blue-400 ml-2">({results.routingStrategyUsed})</span>}
               </p>
             </div>
 
